@@ -3,25 +3,33 @@
 
 Позволяет создавать свои операции, объекты и алгебры, использующие эти операции и объекты.
 
-## stringolist
+## stringolist и его основные методы
 Модуль, который позволяет работать со строко-списками - гибрид строки и списка. Является Python-списком, но имеет в себе методы Python-строки. Таким образом можно искать "подсписок" (подстроко-список) у данного строко-списка. Строко-список можно понимать, как Python-строку, которая вместо символов содержит любые объекты.
 
 ### Создание строко-списка
 Для создания строко-списка в конструктор в качестве параметра нужно подать список, либо подать сразу несколько объектов:
 ```
 s = stringolist(0, 1.1, 'abc', None)            # stringolist([0, 1.1, 'abc', None])
-print(len(s))                                   # 4
+len(s)                                          # 4
 helloList = stringolist(list('Hello world!'))   # stringolist(['H', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '!'])
-print(len(helloList))                           # 12
+len(helloList)                                  # 12
 helloStr = stringolist('Hello world')           # stringolist(['Hello world'])
-print(len(helloStr))                            # 1
+len(helloStr)                                   # 1
 ```
 Количество параметров, поданных в конструктор, приоритетнее значения первого параметра:
 ```
 a = stringolist([1, 2, 3], 'abc')   # stringolist([[1, 2, 3], 'abc'])
-print(len(a))                       # 2
+len(a)                              # 2
 b = stringolist([[1, 2, 3]])        # stringolist([[1, 2, 3]])
-print(len(b))                       # 1
+len(b)                              # 1
+```
+
+### Добавление новых объектов в строко-список
+Добавление новых элементов производится так же как и в список:
+```
+a = stringolist(list('Hell'))   # stringolist(['H', 'e', 'l', 'l'])
+a.append('o')
+a                               # stringolist(['H', 'e', 'l', 'l', 'o'])
 ```
 
 ### Операции над строко-списками
@@ -29,10 +37,10 @@ print(len(b))                       # 1
 ```
 a = stringolist(1, 2, 3)    # stringolist([1, 2, 3])
 b = stringolist(4, 5, 6)    # stringolist([4, 5, 6])
-print(a + b)                # stringolist([1, 2, 3, 4, 5, 6])
-print(a * 3)                # stringolist([1, 2, 3, 1, 2, 3, 1, 2, 3])
-print(b * 0)                # stringolist([])
-print(b * -1)               # stringolist([])
+a + b                       # stringolist([1, 2, 3, 4, 5, 6])
+a * 3                       # stringolist([1, 2, 3, 1, 2, 3, 1, 2, 3])
+b * 0                       # stringolist([])
+b * -1                      # stringolist([])
 ```
 
 ### Получение объекта по ключу или срезу
@@ -40,14 +48,14 @@ print(b * -1)               # stringolist([])
 ```
 L = ['a', 'b', 'c', 'd', 'e', 'f']
 S = stringolist(L.copy())           # чтобы случайно не изменить строко-список через переменную L, делаем её копию
-print(S[0])                         # a
-print(S[3])                         # d
-print(S[-1])                        # f
-print(S[-4])                        # c
-print(S[1:4])                       # stringolist(['b', 'c', 'd'])
-print(S[:2])                        # stringolist(['a', 'b'])
-print(S[3:])                        # stringolist(['d', 'e', 'f'])
-print(S[::2])                       # stringolist(['a', 'c', 'e'])
+S[0]                                # a
+S[3]                                # d
+S[-1]                               # f
+S[-4]                               # c
+S[1:4]                              # stringolist(['b', 'c', 'd'])
+S[:2]                               # stringolist(['a', 'b'])
+S[3:]                               # stringolist(['d', 'e', 'f'])
+S[::2]                              # stringolist(['a', 'c', 'e'])
 ```
 
 ### Перечисление в цикле *for*
@@ -57,19 +65,48 @@ nums = stringolist(list(range(10))) # stringolist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 sqrs = stringolist()                # stringolist([])
 for num in nums:
     sqrs.append(num ** 2)
-print(sqrs)                         # stringolist([0, 1, 4, 9, 16, 25, 36, 49, 64, 81])
+sqrs                                # stringolist([0, 1, 4, 9, 16, 25, 36, 49, 64, 81])
 ```
 
 ### Проверка принадлежности
 Проверка принадлежности работает как для строки:
 ```
-s = stringolist(0, 'f', 23, 4.5, -0.0, None)    # stringolist([0, 'f', 23, 4.5, -0.0, None])
+s = stringolist(0, 'f', 23, 4.5, 'abc', None)   # stringolist([0, 'f', 23, 4.5, 'abc', None])
 sub = stringolist('f', 23, 4.5)                 # stringolist(['f', 23, 4.5])
-print(sub in s)                                 # True
+sub in s                                        # True
 sub = stringolist('f', 4.5)                     # stringolist(['f', 4.5])
-print(sub in s)                                 # False
-print(23 in s)                                  # TypeError: must be stringolist, not int
+sub in s                                        # False
+23 in s                                         # TypeError: must be stringolist, not int
 ```
 
-## exprtree
-Модуль, который позволяет создавать свои операции
+### Поиск объектов и подстроко-списков
+Для поиска объектов в строко-списке как в списке используется метод *index*, а для поиска подстроко-списка используются *find* и *rfind*:
+```
+s = stringolist(0, 1, 2, 0, 1, 2, 0, 1, 2)      # stringolist([0, 1, 2, 0, 1, 2, 0, 1, 2])
+s.index(2)                                      # 2
+sub = stringolist(2, 0, 1)                      # stringolist([2, 0, 1])
+s.find(sub)                                     # 2
+s.rfind(sub)                                    # 5
+```
+
+### Замена подстроко-списка другим
+Замена подстрокосписка другим производится методом *replace*. Сам строко-список не изменится. Этот метод работает подобно методу для строки:
+```
+s = stringolist(list('apple  orange  watermelon'))  # stringolist(['a', 'p', 'p', 'l', 'e', ' ', ' ', 'o', 'r', 'a', 'n', 'g', 'e', ' ', ' ', 'w', 'a', 't', 'e', 'r', 'm', 'e', 'l', 'o', 'n'])
+old = stringolist(list('  '))                       # stringolist([' ', ' '])
+new = stringolist(list(', '))                       # stringolist([',', ' '])
+s.replace(old, new)                                 # stringolist(['a', 'p', 'p', 'l', 'e', ',', ' ', 'o', 'r', 'a', 'n', 'g', 'e', ',', ' ', 'w', 'a', 't', 'e', 'r', 'm', 'e', 'l', 'o', 'n'])
+new = stringolist(list(' '))                        # stringolist([' '])
+s.replace(old, new)                                 # stringolist(['a', 'p', 'p', 'l', 'e', ' ', 'o', 'r', 'a', 'n', 'g', 'e', ' ', 'w', 'a', 't', 'e', 'r', 'm', 'e', 'l', 'o', 'n'])
+```
+
+### Разбитие строко-списка на строко-списки
+Разбитие строко-списка на строко-списки производится методом *split*, как это делается и для строк:
+```
+s = stringolist(list('apple  orange  watermelon'))  # stringolist(['a', 'p', 'p', 'l', 'e', ' ', ' ', 'o', 'r', 'a', 'n', 'g', 'e', ' ', ' ', 'w', 'a', 't', 'e', 'r', 'm', 'e', 'l', 'o', 'n'])
+sep = stringolist(list('  '))                       # stringolist([' ', ' '])
+s.split(sep)                                        # [stringolist(['a', 'p', 'p', 'l', 'e']), stringolist(['o', 'r', 'a', 'n', 'g', 'e']), stringolist(['w', 'a', 't', 'e', 'r', 'm', 'e', 'l', 'o', 'n'])]
+```
+
+## exprtree и его основные методы
+Модуль, который позволяет создавать свои операции, строить с помощью них алгебру и задавать выражения с помощью уже алгебры.
