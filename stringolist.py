@@ -86,10 +86,10 @@ class stringolist:
             return False
         raise TypeError(f"must be stringolist, not {item.__class__.__name__}")
 
-    def __copy__(self):
+    def copy(self):
         return stringolist(self.val.copy())
 
-    def __deepcopy__(self):
+    def deepcopy(self):
         new_list = []
         for x in self.val:
             try:
