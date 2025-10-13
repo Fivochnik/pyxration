@@ -30,7 +30,7 @@ order_brackets - группирующая операция, показывающ
         if computed is None:
             computed = []
         if isinstance(expr, exprtree):
-            res = expr.__copy__()
+            res = expr.copy()
             for n, x in enumerate(res.trees):
                 if any(x is y for y in computed):
                     continue
@@ -43,7 +43,7 @@ order_brackets - группирующая операция, показывающ
         elif not isinstance(expr, stringolist):
             return expr
             #raise TypeError(f'аргумент expr должен быть str, stringolist или exprtree, а не {expr.__class__.__name__}')
-        res = expr.__copy__()
+        res = expr.copy()
         for oper in self.oper_pars_ord:
             if isinstance(res, exprtree):
                 break
@@ -105,12 +105,16 @@ trees - список поддеревьев."""
     def __repr__(self):
         return f'exprtree({self.val.name!r}, {self.trees!r})'
 
-    def __copy__(self):
-        return exprtree(self.val, [x.__copy__() if isinstance(x, exprtree) else x
+    def copy(self):
+        return exprtree(self.val, [x.copy() if isinstance(x, exprtree) else x
                                    for x in self.trees])
 
-def str_tree(self: 'exprtree|any', lasts: list = None, last: bool = False):
+def str_tree(self: 'functree|exprtree|any', lasts: list = None, last: bool = False):
     """Возвращает дерево на боку в виде текста."""
+    if (self.__class__.__name__ == 'functree' and
+        hasattr(self, 'params') and
+        hasattr(self, 'expr')):
+        return f'{self.params}\n{str_tree(self.expr)}'
     if lasts is None:
         lasts = []
     res = ''
@@ -232,7 +236,7 @@ c_p_pos = pair_of(expr_sl, o_p, c_p, o_p_pos) #Найдёт парную зак�
         raise ValueError(f'в позиции {pos} не начинается ни окрывающая часть ни закрывающая часть')
     open_part_len = len(open_part)
     close_part_len = len(close_part)
-    expr_len = len(expr)
+    expr_len = len(main)
     if pos < 0:
         pos += expr_len
     if counter == 1:
@@ -326,7 +330,7 @@ circle_qroup.update_funcs(grouping_parser_and_repres('(', ')', circle_qroup))"""
             exp = stringolist(list(exp))
         elif not isinstance(exp, stringolist):
             raise TypeError(f'ожидался str или stringolist, а встреченно {exp.__class__.__name__}')
-        res = exp.__copy__()
+        res = exp.copy()
         computed = False
         s_p = 0
         while True:
@@ -413,7 +417,7 @@ sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
                 exp = stringolist(list(exp))
             elif not isinstance(exp, stringolist):
                 raise TypeError(f'ожидался str или stringolist, а встреченно {exp.__class__.__name__}')
-            res = exp.__copy__()
+            res = exp.copy()
             computed = False
             pos = 0
             while True:
