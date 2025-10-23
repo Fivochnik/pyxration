@@ -90,6 +90,22 @@ order_brackets - группирующая операция, показывающ
             cur_expr_str.trees.append(obj_str)
         return cur_expr_str.val.repres(cur_expr_str.trees)
 
+    def order_brackets_del(self, expr: 'exprtree'):
+        """Удаляет все группирующие операции, показывающие порядок выполнения операций.
+Должна быть указана операция в атрибуте "ord_brac" для выполнения этого действия.
+Если атрибут имеет значение "None", то вернёт "False" и не сделает ничего, иначе - вернёт "True", если хоть одна из группирующий операций была удалена."""
+        if self.ord_brac is None or not isinstance(expr, exprtree):
+            return False
+        deleted = False
+        for tree in expr.trees:
+            deleted = self.order_brackets_del(tree) or deleted
+        if expr.val == self.ord_brac:
+            new_expr = expr.trees[0]
+            expr.val = new_expr.val
+            expr.trees = new_expr.trees
+            deleted = True
+        return deleted
+
 class exprtree:
     """Класс дерева математического выражения.
 val - тип операции или другой объект;
@@ -602,9 +618,15 @@ if __name__ == '__main__':
             return stringolist(list(v))
         variable = operation('variable')
         variable.funcs_update(object_parser_and_repres(is_var, variable, to_var, var_to_strlst))
-        simple = algebra('simple', [x for x in group.values()] + [split, plus, minus, power, sin, cos, root, int_num, variable])
+        simple = algebra('simple',
+                         [x for x in group.values()] + [split, plus, minus, power, sin, cos, root, int_num, variable],
+                         [int_num, variable, sin, cos, root, power, plus, minus, split] + [x for x in group.values()],
+                         group['()'])
         expr = 'sin(root[2](x))^2+cos(root[2](x))^2+[({r,q},e)-root[n](78)]'
         exps = stringolist(list(expr))
         expt = simple.new_expr(exps)
+        print(expr, str_tree(expt), sep = ':\n')
+        print('expr =', simple.to_str(expr))
+        print(f'{simple.order_brackets_del(expt) = }')
         print(expr, str_tree(expt), sep = ':\n')
         print('expr =', simple.to_str(expr))

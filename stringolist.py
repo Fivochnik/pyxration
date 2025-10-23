@@ -215,7 +215,7 @@ With natural text that includes punctuation, consider using the regular expressi
             whitespace = {'\n', '\r', '\t', '\f', ' '}
             token = stringolist()
             for obj in self.val:
-                if maxsplit and obj in whitespace:
+                if maxsplit and isinstance(obj, str) and obj in whitespace:
                     res.append(token)
                     token = stringolist()
                 else:
