@@ -115,6 +115,12 @@ trees - список поддеревьев."""
         self.val = val
         self.trees = trees
 
+    def __eq__(self, other):
+        return isinstance(other, exprtree) and self.val == other.val and self.trees == other.trees
+
+    def __ne__(self, other):
+        return not self == other
+
     def __str__(self):
         return self.val.repres(self.trees)
 
@@ -125,12 +131,12 @@ trees - список поддеревьев."""
         return exprtree(self.val, [x.copy() if isinstance(x, exprtree) else x
                                    for x in self.trees])
 
-def str_tree(self: 'functree|exprtree|any', lasts: list = None, last: bool = False):
+def str_tree(self: 'functree|exprtree|any', showtypes: bool = False, lasts: list = None, last: bool = False):
     """Возвращает дерево на боку в виде текста."""
     if (self.__class__.__name__ == 'functree' and
         hasattr(self, 'params') and
         hasattr(self, 'expr')):
-        return f'{self.params}\n{str_tree(self.expr)}'
+        return f'{self.params}\n{str_tree(self.expr, showtypes)}'
     if lasts is None:
         lasts = []
     res = ''
@@ -142,13 +148,15 @@ def str_tree(self: 'functree|exprtree|any', lasts: list = None, last: bool = Fal
                 res += ' '
         res += '└' if last else '├'
     res += f'[{self.val.name}]' if isinstance(self, exprtree) else str(self)
+    if showtypes:
+        res += f' is {type(self).__name__}'
     res += '\n'
     if isinstance(self, exprtree) and len(self.trees) != 0:
         lasts.append(True)
         for tree in self.trees[:-1]:
-            res += str_tree(tree, lasts)
+            res += str_tree(tree, showtypes, lasts)
         lasts[-1] = False
-        res += str_tree(self.trees[-1], lasts, True)
+        res += str_tree(self.trees[-1], showtypes, lasts, True)
         del lasts[-1]
     return res
 
@@ -175,6 +183,12 @@ class operation:
                 self.parser = parser
             if not repres is None:
                 self.repres = repres
+
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        not self == other
 operation.__doc__ = (
 """Класс операции.
 name - уникальное имя операции;
@@ -301,7 +315,9 @@ addition.funcs_update(infix_parser_and_repres('+', addition))"""
         elif not isinstance(exp, stringolist):
             raise TypeError(f'ожидался str или stringolist, а встреченно {exp.__class__.__name__}')
         args = exp.split(stringolist(list(oper_notation)))
-        comp_args = [x[0] if isinstance(x, stringolist) and len(x) == 1 else x
+        comp_args = [x[0]
+                     if isinstance(x, stringolist) and len(x) == 1 and isinstance(x[0], exprtree) else
+                     x
                      for x in args]
         return exprtree(oper, comp_args) if len(comp_args) > 1 else None
 
@@ -477,7 +493,12 @@ sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
                 new_k = k + var_count
                 vs = args[k:new_k]
                 k = new_k
-                res += group.repres(sep.join(str(x) for x in vs))
+                if sep is None:
+                    if len(vs) != 1:
+                        raise RuntimeError(f'ожидалось одно значение в группе "{group.name}", а встреченно {len(vs)}')
+                    res += group.repres([str(vs[0])])
+                else:
+                    res += group.repres(sep.join(str(x) for x in vs))
             return res
 
     return prefix_parser, prefix_repres
@@ -531,7 +552,7 @@ sin.funcs_update(object_parser_and_repres(lambda x: x.is_str() and x.to_str().is
             raise TypeError(f'должен быть подан list, а не {args.__class__.__name__}')
         if len(args) != 1:
             raise ValueError(f'операции-объекты имеют только один аргумент')
-        return str(to_stringolist(args[0]))
+        return to_stringolist(args[0]).to_str()
 
     return object_parser, object_repres
 
@@ -625,8 +646,11 @@ if __name__ == '__main__':
         expr = 'sin(root[2](x))^2+cos(root[2](x))^2+[({r,q},e)-root[n](78)]'
         exps = stringolist(list(expr))
         expt = simple.new_expr(exps)
+        expt1 = simple.new_expr(exps)
+        simple.order_brackets_del(expt1)
         print(expr, str_tree(expt), sep = ':\n')
         print('expr =', simple.to_str(expr))
         print(f'{simple.order_brackets_del(expt) = }')
         print(expr, str_tree(expt), sep = ':\n')
         print('expr =', simple.to_str(expr))
+        print(f'{expr}\n==\n{expr}\n=\n{expt == expt1}')

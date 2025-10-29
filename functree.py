@@ -9,6 +9,8 @@ name - уникальное имя параметра.
 Имя параметра должно быть уникальным в рамках самой функции."""
 
     def __init__(self, name: str):
+        if not isinstance(name, str):
+            raise TypeError(f'имя параметра должно быть строкой, а не "{type(name).__name__}"')
         self.name = name
 
     def __eq__(self, other):
@@ -35,7 +37,7 @@ def new_func(self, expr: 'stringolist', params: list = None) -> 'functree':
             if opened is None:
                 opened = i
             else:
-                fp = funcparam(expr[opened + 1:i])
+                fp = funcparam(expr[opened + 1:i].to_str())
                 if not fp in params:
                     params.append(fp)
                 new_expr.append(fp)
@@ -44,8 +46,28 @@ def new_func(self, expr: 'stringolist', params: list = None) -> 'functree':
             new_expr.append(obj)
     if not opened is None:
         raise SyntaxError('ожидался закрывающий "%", но его не было встречено')
-    new_expr = new_expr.replace(r1p[1], r1p[0]).replace(r11[1], r11[0])
-    return functree(self.new_expr(new_expr), params)
+    r11 = stringolist('\\\\'), stringolist('\\')
+    r1p = stringolist('\\%'), stringolist('%')
+    new_expr = new_expr.replace(*r1p).replace(*r11)
+    res = functree(self.new_expr(new_expr), params)
+    _normalizefunc(res)
+    return res
+
+def _normalizefunc(func: 'functree|exprtree'):
+    """Приводит параметры функции к нормальному виду.
+В конце работы функции "new_func" функция-дерево содержит свои параметры в виде одноэлементного строко-списка с этим самым параметром.
+Данная функция исправляет это недоразумение, вытаскивая параметр из строко-списка."""
+    if isinstance(func, functree):
+        _normalizefunc(func.expr)
+    elif isinstance(func, exprtree):
+        func_len = len(func.trees)
+        for i in range(func_len):
+            cur = func.trees[i]
+            if isinstance(cur, stringolist):
+                if len(cur) == 1 and isinstance(cur[0], funcparam):
+                    func.trees[i] = cur[0]
+            else:
+                _normalizefunc(func.trees[i])
 
 algebra.new_func = new_func
 del new_func
@@ -55,6 +77,43 @@ class functree:
     def __init__(self, val: 'exprtree', params: list):
         self.expr = val
         self.params = params
+
+    def paramvals(self, expr: exprtree, params: dict = None) -> bool:
+        """Определяет значения параметров, при которых функция будет эквивалентна выражению.
+Возвращает True, если такие значения можно подобрать, иначе - False.
+expr - операционное дерево или дерево-функция, с которым сравнивается функция-дерево;
+params - словарь определённых значений параметров.
+
+expr - операционное дерево или дерево-функция - должно полностью совпадать с текущей функцией, кроме, быть может узлов, где у функции стоят параметры,
+чтобы функция подобрала значения для параметров.
+
+params - словарь вида {str: exprtree}, где ключами являются имена параметров функции, а значениями - операционные деревья - значения параметров.
+"""
+        if isinstance(self, functree):
+            if params is None:
+                params = {}
+            res = functree.paramvals(self.expr, expr, params)
+            if res:
+                for p in params.keys():
+                    params[p] = params[p].copy()
+            return res
+        elif isinstance(self, funcparam):
+            if self.name in params.keys():
+                if params[self.name] != expr:
+                    return False
+            else:
+                params[self.name] = expr
+            return True
+        elif isinstance(self, exprtree):
+            self_len = len(self.trees)
+            expr_len = len(expr.trees)
+            if self.val == expr.val and self_len == expr_len:
+                return all(functree.paramvals(self.trees[i], expr.trees[i], params)
+                           for i in range(self_len))
+            else:
+                return False
+        else:
+            return self == expr
 
 if __name__ == '__main__':
     if True:
@@ -101,6 +160,11 @@ if __name__ == '__main__':
         simple = algebra('simple', [x for x in group.values()] + [split, plus, minus, power, sin, cos, root, int_num, variable])
         expr = 'sin(root[2](%x%))^2+cos(root[2](%x%))^2+[({r,q},e)-root[%n%](78)]'
         exps = stringolist(list(expr))
-        expt = simple.new_func(exps)
-        print(expr, str_tree(expt), sep = ':\n')
-        #print('expr =', simple.to_str(expr))
+        expf = simple.new_func(exps)
+        print(expr, str_tree(expf, True), sep = ':\n')
+        expt = simple.new_expr(exps.replace(stringolist('%'), stringolist()))
+        print('\n' + expr.replace('%', ''), str_tree(expt, True), sep = ':\n')
+        prms = {}
+        print(f'{expf.paramvals(expt, prms) = }')
+        for p in prms:
+            print(f'{p} = {simple.to_str(prms[p])}\n{str_tree(prms[p])}')
