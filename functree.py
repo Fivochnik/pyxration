@@ -8,6 +8,8 @@ name - уникальное имя параметра.
 
 Имя параметра должно быть уникальным в рамках самой функции."""
 
+    __slots__ = ['name']
+
     def __init__(self, name: str):
         if not isinstance(name, str):
             raise TypeError(f'имя параметра должно быть строкой, а не "{type(name).__name__}"')
@@ -24,6 +26,9 @@ name - уникальное имя параметра.
 
     def __repr__(self):
         return f'funcparam({self.name})'
+
+    def __reduce__(self):
+        return self.__class__, (self.name,)
 
 def new_func(self, expr: 'stringolist', params: list = None) -> 'functree':
     if params is None:
@@ -50,15 +55,15 @@ def new_func(self, expr: 'stringolist', params: list = None) -> 'functree':
     r1p = stringolist('\\%'), stringolist('%')
     new_expr = new_expr.replace(*r1p).replace(*r11)
     res = functree(self.new_expr(new_expr), params)
-    _normalizefunc(res)
+    res = _normalizefunc(res)
     return res
 
-def _normalizefunc(func: 'functree|exprtree'):
+def _normalizefunc(func: 'functree|exprtree') -> 'functree|exprtree':
     """Приводит параметры функции к нормальному виду.
 В конце работы функции "new_func" функция-дерево содержит свои параметры в виде одноэлементного строко-списка с этим самым параметром.
 Данная функция исправляет это недоразумение, вытаскивая параметр из строко-списка."""
     if isinstance(func, functree):
-        _normalizefunc(func.expr)
+        func.expr = _normalizefunc(func.expr)
     elif isinstance(func, exprtree):
         func_len = len(func.trees)
         for i in range(func_len):
@@ -67,18 +72,31 @@ def _normalizefunc(func: 'functree|exprtree'):
                 if len(cur) == 1 and isinstance(cur[0], funcparam):
                     func.trees[i] = cur[0]
             else:
-                _normalizefunc(func.trees[i])
+                func.trees[i] = _normalizefunc(cur)
+    elif isinstance(func, stringolist):
+        if len(func) == 1 and isinstance(func[0], funcparam):
+            return func[0]
+    return func
 
 algebra.new_func = new_func
 del new_func
 
 class functree:
 
+    __slots__ = ['expr', 'params']
+
     def __init__(self, val: 'exprtree', params: list):
         self.expr = val
         self.params = params
 
-    def paramvals(self, expr: exprtree, params: dict = None) -> bool:
+    def __reduce__(self):
+        return self.__class__, (self.expr, []), None, iter(self.params)
+
+    def copy(self):
+        """Возвращает копию функции-дерева."""
+        return functree(self.expr.copy() if hasattr(self.expr, 'copy') else self.expr, self.params.copy())
+
+    def paramvals(self, expr: 'exprtree|functree', params: dict = None) -> bool:
         """Определяет значения параметров, при которых функция будет эквивалентна выражению.
 Возвращает True, если такие значения можно подобрать, иначе - False.
 expr - операционное дерево или дерево-функция, с которым сравнивается функция-дерево;
@@ -95,7 +113,9 @@ params - словарь вида {str: exprtree}, где ключами явля
             res = functree.paramvals(self.expr, expr, params)
             if res:
                 for p in params.keys():
-                    params[p] = params[p].copy()
+                    param = params[p]
+                    if hasattr(param, 'copy'):
+                        params[p] = param.copy()
             return res
         elif isinstance(self, funcparam):
             if self.name in params.keys():
@@ -106,6 +126,8 @@ params - словарь вида {str: exprtree}, где ключами явля
             return True
         elif isinstance(self, exprtree):
             self_len = len(self.trees)
+            if not isinstance(expr, exprtree):
+                return False
             expr_len = len(expr.trees)
             if self.val == expr.val and self_len == expr_len:
                 return all(functree.paramvals(self.trees[i], expr.trees[i], params)
@@ -114,6 +136,31 @@ params - словарь вида {str: exprtree}, где ключами явля
                 return False
         else:
             return self == expr
+
+    def subs(self, params: dict) -> 'exprtree|functree|any':
+        """Подставляет значения параметров в функцию-дерево.
+params - словарь, где ключи являются именами параметров, а значения - деревья операций.
+
+Само дерево-функция меняется: если нужно сохранить текущее дерево-функцию, сделайте копию перед применением метода."""
+        if isinstance(self, functree):
+            self.expr = functree.subs(self.expr, params)
+            for tree in params.values():
+                if isinstance(tree, functree):
+                    for p in tree.params:
+                        if not p in self.params:
+                            self.params.append(p)
+        elif isinstance(self, funcparam):
+            res = params.get(self.name, None)
+            if not res is None:
+                if isinstance(res, functree):
+                    res = res.expr
+                self = res
+                if hasattr(res, 'copy'):
+                    self = res.copy()
+        elif isinstance(self, exprtree):
+            for n, tree in enumerate(self.trees):
+                self.trees[n] = functree.subs(tree, params)
+        return self
 
 if __name__ == '__main__':
     if True:

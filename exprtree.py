@@ -1,4 +1,6 @@
 from stringolist import stringolist
+from cmpall import cmp, _dumps, _cmp_first_call, _cmp_with_pickle, _cmp_with_dill
+from importlib.util import find_spec
 
 class algebra:
     """Класс алгебры математических выражений.
@@ -15,6 +17,8 @@ order_brackets - группирующая операция, показывающ
 Аргумент operation_execution_order должен быть списком операций.
 Положение операций в этом списке показывает порядок, в котором будут выполняться операции."""
 
+    __slots__ = ['name', 'oper_pars_ord', 'oper_exec_ord', 'ord_brac']
+
     def __init__(self,
                  name: str,
                  operation_parsing_order: list,
@@ -24,6 +28,9 @@ order_brackets - группирующая операция, показывающ
         self.oper_pars_ord = operation_parsing_order
         self.oper_exec_ord = operation_execution_order
         self.ord_brac = order_brackets
+
+    def __reduce__(self):
+        return self.__class__, (self.name, [], self.oper_exec_ord, self.ord_brac), None, iter(self.oper_pars_ord)
 
     def new_expr(self, expr: 'stringolist|exprtree', computed: list = None) -> 'stringolist|exprtree':
         """Создаёт деревья выражений из строкового выражения."""
@@ -111,6 +118,8 @@ class exprtree:
 val - тип операции или другой объект;
 trees - список поддеревьев."""
 
+    __slots__ = ['val', 'trees']
+
     def __init__(self, val: 'operation', trees: list = None):
         self.val = val
         self.trees = trees
@@ -127,7 +136,14 @@ trees - список поддеревьев."""
     def __repr__(self):
         return f'exprtree({self.val.name!r}, {self.trees!r})'
 
+    def __reduce__(self):
+        if self.trees is None:
+            return self.__class__, (self.val,)
+        else:
+            return self.__class__, (self.val, []), None, iter(self.trees)
+
     def copy(self):
+        """Возвращает копию дерева."""
         return exprtree(self.val, [x.copy() if isinstance(x, exprtree) else x
                                    for x in self.trees])
 
@@ -162,6 +178,8 @@ def str_tree(self: 'functree|exprtree|any', showtypes: bool = False, lasts: list
 
 class operation:
 
+    __slots__ = ['name', 'parser', 'repres']
+
     def __init__(self,
                  name: str,
                  parser: 'func(str|stringolist) -> exprtree|stringolist|None' = None,
@@ -173,6 +191,15 @@ class operation:
         if not oper_dict is None:
             oper_dict[self.name] = self
 
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        not self == other
+
+    def __reduce__(self):
+        return self.__class__, (self.name,)
+
     def funcs_update(self,
                      parser: '(func(str|stringolist) -> exprtree|None)|tuple|None' = None,
                      repres: '(func(list) -> str)|None' = None):
@@ -183,12 +210,6 @@ class operation:
                 self.parser = parser
             if not repres is None:
                 self.repres = repres
-
-    def __eq__(self, other):
-        return self is other
-
-    def __ne__(self, other):
-        not self == other
 operation.__doc__ = (
 """Класс операции.
 name - уникальное имя операции;
@@ -305,7 +326,7 @@ oper - сама операция, у которой ещё нет функций
 Для создания своей инфиксной операции нужно:
 1. Создать экземпляр операции;
 2. Обновить его функции парсировки и представления с помощью этой функции.
-Вот как это выглядит в коде:
+Вот, как это выглядит в коде:
 addition = operation('addition')
 addition.funcs_update(infix_parser_and_repres('+', addition))"""
     def infix_parser(exp: 'str|stringolist') -> 'exprtree|None':
@@ -342,7 +363,7 @@ oper - сама операция, у которой ещё нет функций
 Для создания своей операции-группы нужно:
 1. Создать экземпляр операции;
 2. Обновить его функции парсировки и представления с помощью этой функции.
-Вот как это выглядит в коде:
+Вот, как это выглядит в коде:
 circle_qroup = operation('(x)')
 circle_qroup.update_funcs(grouping_parser_and_repres('(', ')', circle_qroup))"""
     if isinstance(oper_start, str):
@@ -411,7 +432,7 @@ circle_qroup.update_funcs(grouping_parser_and_repres('(', ')', circle_qroup))
 Для создания своей префиксной операции нужно:
 1. Создать экземпляр операции;
 2. Обновить его функции парсировки и представления с помощью этой функции.
-Вот как это выглядит в коде:
+Вот, как это выглядит в коде:
 sin = operation('sin')
 sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
     if isinstance(oper_prefix, str):
@@ -509,14 +530,20 @@ def object_parser_and_repres(is_object: 'func(stringolist) -> bool',
                              to_stringolist: 'func(any) -> stringolist' = None) -> ('func(str|stringolist) -> exprtree|stringolist|None', 'func(list) -> str'):
     """Возвращает функцию-парсер и функцию представления твоего объекта.
 is_object - функция, которая проверяет правильность представления твоего объекта;
-oper - сам объект, у которой ещё нет функций парсеровки и представления.
+oper - сам объект, у которой ещё нет функций парсеровки и представления;
+to_object - функция, которая возвращает объект из строко-списка;
+to_stringolist - функция, которая возвращает представление в строко-списке вашего объекта.
 
 Аргумент is_object должен принимать строко-список и возвращать True или False взависимости от того можно ли твой объект представить в виде поданого строко-списка.
+
+Аргумент to_object должен быть None или функцией, которая принимает только строко-список и возвращает соответствующий ему объект.
+
+Аргумент to_stringolist должен быть None или функцией, которая принимает только ваш объект и возвращает соответствующий ему строко-список.
 
 Для создания своего объекта нужно:
 1. Создать экземпляр операции;
 2. Обновить его функции парсировки и представления с помощью этой функции.
-Вот как это выглядит в коде:
+Вот, как это выглядит в коде:
 int_number = operation('int number')
 sin.funcs_update(object_parser_and_repres(lambda x: x.is_str() and x.to_str().isdigit(), int_number))"""
     if not callable(is_object):
@@ -555,6 +582,77 @@ sin.funcs_update(object_parser_and_repres(lambda x: x.is_str() and x.to_str().is
         return to_stringolist(args[0]).to_str()
 
     return object_parser, object_repres
+
+def operInfix(oper_name: str, oper_notation) -> operation:
+    """Возвращает инфиксную операцию.
+oper_name - имя операции;
+oper_notation - обозначение инфиксной операции в строковом выражении."""
+    res = operation(oper_name)
+    res.funcs_update(infix_parser_and_repres(oper_notation, res))
+    return res
+
+def operGrouping(oper_name: str, oper_start: str, oper_end: str) -> operation:
+    """Возвращает инфиксную операцию.
+oper_name - имя операции;
+oper_start - обозначение открывающей части операции в строковом выражении;
+oper_end - обозначение закрывающей части операции в строковом выражении."""
+    res = operation(oper_name)
+    res.funcs_update(grouping_parser_and_repres(oper_start, oper_end, res))
+    return res
+
+def operPrefix(oper_name: str, oper_prefix: str, group_args_seps: list = None) -> operation:
+    """Возвращает префиксную операцию.
+oper_name - имя операции;
+oper_prefix - обозначение префиксной части операции в строковом выражении;
+group_args_seps - список пар из операций-групп и разделителей операций-групп, принимаемых в качестве аргумента (по-умолчанию: None)."""
+    res = operation(oper_name)
+    res.funcs_update(prefix_parser_and_repres(oper_prefix, res, group_args_seps))
+    return res
+
+def operObject(oper_name: str,
+               is_object: 'func(stringolist) -> bool',
+               to_object: 'func(stringolist) -> any' = None,
+               to_stringolist: 'func(any) -> stringolist' = None) -> operation:
+    """Возвращает объект в виде операции.
+is_object - функция, которая проверяет правильность представления твоего объекта;
+to_object - функция, которая возвращает объект из строко-списка;
+to_stringolist - функция, которая возвращает представление в строко-списке вашего объекта."""
+    res = operation(oper_name)
+    res.funcs_update(object_parser_and_repres(is_object, res, to_object, to_stringolist))
+    return res
+
+
+operation_reduce_without_dill = operation.__reduce__
+
+_dill_is_imported = False
+_pickle_is_imported = False
+
+def dill_disable():
+    """Отключает возможность пользоваться библиотекой "dill" для функций и методов библиотеки "pyxration"."""
+    global cmp, _dumps
+    operation.__reduce__ = operation_reduce_without_dill
+    if _pickle_is_imported:
+        cmp = _cmp_with_pickle
+        _dumps = pickle.dumps
+    else:
+        cmp = _cmp_first_call
+        _dumps = None
+
+def dill_enable():
+    """Если установлена библиотека "dill", включает возможность пользоваться ею для функций и методов библиотеки "pyxration", иначе - отключает её использование."""
+    global cmp, _dumps
+    if find_spec('dill') is None:
+        dill_disable()
+    else:
+        del operation.__reduce__
+        if _dill_is_imported:
+            cmp = _cmp_with_dill
+            _dumps = dill.dumps
+        else:
+            cmp = _cmp_first_call
+            _dumps = None
+
+dill_enable()
 
 if __name__ == '__main__':
     if False:
@@ -654,3 +752,15 @@ if __name__ == '__main__':
         print(expr, str_tree(expt), sep = ':\n')
         print('expr =', simple.to_str(expr))
         print(f'{expr}\n==\n{expr}\n=\n{expt == expt1}')
+    if False:
+        a = 'a'
+        b = 1
+        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
+        a = operation('oper')
+        b = operation('oper')
+        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
+        b.funcs_update(infix_parser_and_repres('+', b))
+        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
+        a = ['a']
+        b = [1]
+        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')

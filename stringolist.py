@@ -1,6 +1,8 @@
 class stringolist:
     """Класс строки с объектами вместо символов."""
 
+    __slots__ = ['val']
+
     def __init__(self, *args):
         args_len = len(args)
         if args_len == 0:
@@ -85,6 +87,9 @@ class stringolist:
                     return True
             return False
         raise TypeError(f"must be stringolist, not {item.__class__.__name__}")
+
+    def __reduce__(self):
+        return self.__class__, (), None, iter(self.val)
 
     def copy(self):
         return stringolist(self.val.copy())
