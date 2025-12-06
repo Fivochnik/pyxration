@@ -17,33 +17,44 @@ order_brackets - группирующая операция, показывающ
 Аргумент operation_execution_order должен быть списком операций.
 Положение операций в этом списке показывает порядок, в котором будут выполняться операции."""
 
-    __slots__ = ['name', 'oper_pars_ord', 'oper_exec_ord', 'ord_brac']
+    __slots__ = ['name', 'oper_pars_ord', 'oper_exec_ord', 'ord_brac', 'preparse', 'poststringify']
 
     def __init__(self,
                  name: str,
                  operation_parsing_order: list,
                  operation_execution_order: list = None,
-                 order_brackets: 'oper' = None):
+                 order_brackets: 'oper' = None,
+                 preparse: list = None,
+                 poststringify: list = None):
         self.name = name
         self.oper_pars_ord = operation_parsing_order
         self.oper_exec_ord = operation_execution_order
         self.ord_brac = order_brackets
+        if preparse is None:
+            preparse = []
+        self.preparse = preparse
+        if poststringify is None:
+            poststringify = []
+        self.poststringify = poststringify
 
     def __reduce__(self):
         return self.__class__, (self.name, [], self.oper_exec_ord, self.ord_brac), None, iter(self.oper_pars_ord)
 
-    def new_expr(self, expr: 'stringolist|exprtree', computed: list = None) -> 'stringolist|exprtree':
-        """Создаёт деревья выражений из строкового выражения."""
-        if computed is None:
-            computed = []
+    def _new_expr(self, expr: 'stringolist|exprtree', _computed: list = None) -> 'stringolist|exprtree':
+        """Создаёт деревья выражений из строкового выражения.
+expr - строко-списковое выражение.
+
+expr является объектом класса stringolist."""
+        if _computed is None:
+            _computed = []
         if isinstance(expr, exprtree):
             res = expr.copy()
             for n, x in enumerate(res.trees):
-                if any(x is y for y in computed):
+                if any(x is y for y in _computed):
                     continue
-                res.trees[n] = self.new_expr(x)
-                computed.append(res.trees[n])
-            computed.append(res)
+                res.trees[n] = self._new_expr(x)
+                _computed.append(res.trees[n])
+            _computed.append(res)
             return res
         #elif isinstance(expr, str):
         #    res = stringolist(list(expr))
@@ -60,20 +71,34 @@ order_brackets - группирующая операция, показывающ
             res = temp_res
             if isinstance(res, stringolist):
                 for n, x in enumerate(res.val):
-                    if any(x is y for y in computed):
+                    if any(x is y for y in _computed):
                         continue
-                    res.val[n] = self.new_expr(x)
-                    computed.append(res.val[n])
+                    res.val[n] = self._new_expr(x)
+                    _computed.append(res.val[n])
             elif isinstance(res, exprtree):
                 for n, x in enumerate(res.trees):
-                    if any(x is y for y in computed):
+                    if any(x is y for y in _computed):
                         continue
-                    res.trees[n] = self.new_expr(x)
-                    computed.append(res.trees[n])
-            computed.append(res)
+                    res.trees[n] = self._new_expr(x)
+                    _computed.append(res.trees[n])
+            _computed.append(res)
         return res
 
-    def to_str(self, expr: 'exprtree'):
+    def new_expr(self, expr: str, del_ord_brackets: bool = True) -> 'stringolist|exprtree':
+        """Создаёт деревья выражений из строкового выражения.
+expr - строковое выражение;
+del_ord_brackets - удалить порядковые скобки из дерева операций? Зачастую они не нужны в дереве, потому что дерево само задаёт порядок.
+
+expr является объектом класса stringolist."""
+        for pre in self.preparse:
+            expr = pre(expr)
+        exprst = stringolist(list(expr))
+        res = self._new_expr(exprst)
+        if del_ord_brackets:
+            self.order_brackets_del(res)
+        return res
+
+    def _to_str(self, expr: 'exprtree') -> str:
         """Возвращает математическое выражение в виде строки."""
         if expr is None:
             return ''
@@ -90,14 +115,21 @@ order_brackets - группирующая операция, показывающ
         for i in range(0
                        if expr.trees is None else
                        len(expr.trees)):
-            obj_str = self.to_str(expr.trees[i])
+            obj_str = self._to_str(expr.trees[i])
             i_order = orderOf(expr.trees[i].val) if isinstance(expr.trees[i], exprtree) else -1
             if i_order != -1 and i_order >= expr_order:
                 obj_str = self.ord_brac.repres([obj_str])
             cur_expr_str.trees.append(obj_str)
         return cur_expr_str.val.repres(cur_expr_str.trees)
 
-    def order_brackets_del(self, expr: 'exprtree'):
+    def to_str(self, expr: 'exprtree') -> str:
+        """Возвращает математическое выражение в виде строки."""
+        res = self._to_str(expr)
+        for post in self.poststringify:
+            res = post(res)
+        return res
+
+    def order_brackets_del(self, expr: 'exprtree') -> bool:
         """Удаляет все группирующие операции, показывающие порядок выполнения операций.
 Должна быть указана операция в атрибуте "ord_brac" для выполнения этого действия.
 Если атрибут имеет значение "None", то вернёт "False" и не сделает ничего, иначе - вернёт "True", если хоть одна из группирующий операций была удалена."""

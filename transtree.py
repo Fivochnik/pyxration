@@ -21,7 +21,10 @@ trans - функция, которая принимает на вход толь
 Важно! Даже если выражение не поменялось нужно вернуть его самого, а не None или что-либо ещё."""
 
 def sortList(lst: list, cmp: 'func(any, any) -> int' = None, reverse: bool = False):
-    """Сортирует существующий список, используя функцию линейного строгого порядка."""
+    """Сортирует существующий список, используя функцию линейного строгого порядка.
+lst - список объектов, который нужно просортировать;
+cmp - функция сравнения пары объектов: -1 - первый аргумент меньше второго, 1 - первый аргумент больше второго, 0 - аргументы равны;
+reverse - флаг, который определяет порядок сортировки: False - от меньшего к большему, True - от большего к меньшему."""
     if cmp is None:
         cmp = lambda a, b: -1 if a < b else 0 if a == b else 1
     if reverse:
@@ -35,16 +38,15 @@ def sortList(lst: list, cmp: 'func(any, any) -> int' = None, reverse: bool = Fal
         min_v = max_v = lst[start]
         for i in range(start, end):
             v = lst[i]
-            cmp_s = cmp(v, min_v)
-            if cmp_s == -1:
+            if cmp(v, min_v) == -1:
                 min_v = v
                 min_i = i
-                continue
-            cmp_e = cmp(v, max_v)
-            if cmp_e == 1:
+            elif cmp(v, max_v) == 1:
                 max_v = v
                 max_i = i
-        if min_i == last:
+        if min_i == max_i:
+            return
+        elif min_i == last:
             if max_i == start:
                 lst[start], lst[last] = min_v, max_v
             else:
@@ -84,8 +86,7 @@ def expression_replacer(formula: tuple) -> 'func(exprtree|any) -> exprtree|any':
 formula - пара функций-деревьев с одинаковым набором параметров.
 Возвращает созданную функцию.
 
-formula является кортежом из двух экземпляров класса functree с одним и тем же набором параметров, даже если в одном из них какие-то параметры вообще не используются.
-"""
+formula является кортежом из двух экземпляров класса functree с одним и тем же набором параметров, даже если в одном из них какие-то параметры вообще не используются."""
     if not isinstance(formula, tuple):
         raise TypeError(f'единственный аргумент функции должен быть кортежом, а не объектом типа "{type(formula).__name__}"')
     if len(formula) != 2:
@@ -112,6 +113,67 @@ formula является кортежом из двух экземпляров �
         return main
 
     return replacedExpr
+
+def neutrals_deleter(neutrals: dict) -> 'func(exprtree|any) -> exprtree|any':
+    """Создаёт функцию, которая удаляет нейтральные элементы операций.
+neutrals - словарь, ключами которого являются имена операций, а значениями - списки элементов, которые считаются нейтральными для данной операции.
+Возвращает созданную функцию."""
+    if not isinstance(neutrals, dict):
+        raise TypeError(f'единственный аргумент функции должен быть словарём, а не объектом типа "{type(neutrals).__name__}"')
+    for op, ne in neutrals.items():
+        if not isinstance(op, str):
+            raise TypeError(f'ключи словаря должны быть строками, а не объектом типа "{type(op).__name__}"')
+        if not isinstance(ne, list):
+            raise TypeError(f'значения словаря должны быть списками, а не объектом типа "{type(ne).__name__}"')
+
+    def withoutNeutrals(main: 'exprtree|any') -> 'exprtree|any':
+        """Удаляет заранее заданные нейтральные элементы.
+Возвращает изменённое или оставленное без изменений выражение."""
+        if not isinstance(main, exprtree):
+            return main
+        oper_name = main.val.name
+        if oper_name in neutrals.keys():
+            trees = []
+            ns = neutrals[oper_name]
+            for tree in main.trees:
+                if not tree in ns:
+                    trees.append(tree)
+            trees_len = len(trees)
+            if trees_len == 0:
+                return ne[0]
+            elif trees_len == 1:
+                return trees[0]
+            main.trees = trees
+        return main
+
+    return withoutNeutrals
+
+def zero_absorber(zeros: dict) -> 'func(exprtree|any) -> exprtree|any':
+    """Создаёт функцию, которая "зануляет" операции, содержащие "нуль-элемент".
+zeros - словарь, ключами которого являются имена операций, а значениями - списки элементов, которые считаются "нулями" для данной операции.
+Возвращает созданную функцию."""
+    if not isinstance(zeros, dict):
+        raise TypeError(f'единственный аргумент функции должен быть словарём, а не объектом типа "{type(zeros).__name__}"')
+    for op, ne in zeros.items():
+        if not isinstance(op, str):
+            raise TypeError(f'ключи словаря должны быть строками, а не объектом типа "{type(op).__name__}"')
+        if not isinstance(ne, list):
+            raise TypeError(f'значения словаря должны быть списками, а не объектом типа "{type(ne).__name__}"')
+
+    def absorbed(main: 'exprtree|any') -> 'exprtree|any':
+        """Зануляет заранее заданные операции, содержащие "нуль-элементы".
+Возвращает изменённое или оставленное без изменений выражение."""
+        if not isinstance(main, exprtree):
+            return main
+        oper_name = main.val.name
+        if oper_name in zeros.keys():
+            zs = zeros[oper_name]
+            for tree in main.trees:
+                if tree in zs:
+                    return zs[0]
+        return main
+
+    return absorbed
 
 if __name__ == '__main__':
     from stringolist import stringolist
@@ -140,22 +202,23 @@ if __name__ == '__main__':
     )
 
     sortPlusMult = operation_sorter([plus, mult])
-    p0 = '%x%+0'
-    p1 = '%x%*1'
-    p = '%x%'
-    p0st = stringolist(list(p0))
-    p1st = stringolist(list(p1))
-    pst = stringolist(list(p))
-    p0func = simple.new_func(p0st, [funcparam('x')])
-    p1func = simple.new_func(p1st, [funcparam('x')])
-    pfunc = simple.new_func(pst, [funcparam('x')])
-    Plus0 = p0func, pfunc
-    Mult1 = p1func, pfunc
-    neutralPlus = expression_replacer(Plus0)
-    neutralMult = expression_replacer(Mult1)
+    d0 = '(%b%+%c%)*%a%'
+    d1 = '%a%*%b%+%a%*%c%'
+    d0st = stringolist(list(d0))
+    d1st = stringolist(list(d1))
+    d0func = simple.new_func(d0st, [funcparam('a'), funcparam('b'), funcparam('c')])
+    d1func = simple.new_func(d1st, [funcparam('a'), funcparam('b'), funcparam('c')])
+    simple.order_brackets_del(d0func)
+    simple.order_brackets_del(d1func)
+    distr = d0func, d1func
+    distrToSum = expression_replacer(distr)
+    ZERO = exprtree(intObj, [0])
+    ONE = exprtree(intObj, [1])
+    delNeutrals = neutrals_deleter({'plus': [ZERO], 'multiply': [ONE]})
+    absorbed = zero_absorber({'multiply': [ZERO]})
 
-    a = '12+(0+1*k)+9*a+1*(a+b*(0+k))+12*b+3'
-    b = '12+3+9*a+12*b+(k*1+0)+1*(a+b*(k+0))'
+    a = '12+(0+1*k)+9*a+1*0*(a+b*(0+k)*1)+12*b+3+0+a*(b+c)'
+    b = '12+1*1*1*0+3+9*a+12*b+(k*1+0)+a*(b+c)+1*(a+b*(k+0))*0'
     ast = stringolist(list(a))
     bst = stringolist(list(b))
     aExpr = simple.new_expr(ast)
@@ -163,25 +226,49 @@ if __name__ == '__main__':
     simple.order_brackets_del(aExpr)
     simple.order_brackets_del(bExpr)
     print('-' * 50)
-    print(f'a = {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr)}')
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
     print('-' * 50)
-    print(f'b = {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr)}')
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
     print('-' * 50)
     aExpr = apply(aExpr, sortPlusMult)
     bExpr = apply(bExpr, sortPlusMult)
     print('\n' * 9)
     print('-' * 50)
-    print(f'a = {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr)}')
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
     print('-' * 50)
-    print(f'b = {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr)}')
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
     print('-' * 50)
-    aExpr = apply(aExpr, neutralPlus)
-    bExpr = apply(bExpr, neutralPlus)
-    aExpr = apply(aExpr, neutralMult)
-    bExpr = apply(bExpr, neutralMult)
+    aExpr = apply(aExpr, absorbed)
+    bExpr = apply(bExpr, absorbed)
     print('\n' * 9)
     print('-' * 50)
-    print(f'a = {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr)}')
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
     print('-' * 50)
-    print(f'b = {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr)}')
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
     print('-' * 50)
+    aExpr = apply(aExpr, delNeutrals)
+    bExpr = apply(bExpr, delNeutrals)
+    print('\n' * 9)
+    print('-' * 50)
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
+    print('-' * 50)
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
+    print('-' * 50)
+    aExpr = apply(aExpr, distrToSum)
+    bExpr = apply(bExpr, distrToSum)
+    print('\n' * 9)
+    print('-' * 50)
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
+    print('-' * 50)
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
+    print('-' * 50)
+    simple.order_brackets_del(aExpr)
+    simple.order_brackets_del(bExpr)
+    print('\n' * 9)
+    print('-' * 50)
+    print(f'A: {a} = {simple.to_str(aExpr)}:\n{str_tree(aExpr, True)}')
+    print('-' * 50)
+    print(f'B: {b} = {simple.to_str(bExpr)}:\n{str_tree(bExpr, True)}')
+    print('-' * 50)
+    
+    print(aExpr == bExpr)

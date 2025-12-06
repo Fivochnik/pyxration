@@ -30,19 +30,25 @@ name - уникальное имя параметра.
     def __reduce__(self):
         return self.__class__, (self.name,)
 
-def new_func(self, expr: 'stringolist', params: list = None) -> 'functree':
+def new_func(self, expr: str, params: list = None) -> 'functree':
+    """Создаёт деревья-функции из строкового выражения.
+expr - строковое выражение, в котором параметры обособлены процентами ("%") (чтобы использовать "%" в выражении, используй "\\%");
+del_ord_brackets - удалить порядковые скобки из дерева операций? Зачастую они не нужны в дереве, потому что дерево само задаёт порядок.
+
+expr является объектом класса stringolist."""
     if params is None:
         params = []
+    exprst = stringolist(list(expr))
     r11 = stringolist('\\', '\\'), stringolist('\\\\')
     r1p = stringolist('\\', '%'), stringolist('\\%')
     new_expr = stringolist()
     opened = None
-    for i, obj in enumerate(expr.replace(*r11).replace(*r1p)):
+    for i, obj in enumerate(exprst.replace(*r11).replace(*r1p)):
         if obj == '%':
             if opened is None:
                 opened = i
             else:
-                fp = funcparam(expr[opened + 1:i].to_str())
+                fp = funcparam(exprst[opened + 1:i].to_str())
                 if not fp in params:
                     params.append(fp)
                 new_expr.append(fp)
@@ -81,6 +87,27 @@ def _normalizefunc(func: 'functree|exprtree') -> 'functree|exprtree':
 algebra.new_func = new_func
 del new_func
 
+def order_brackets_del(self, expr: 'exprtree') -> bool:
+    """Удаляет все группирующие операции, показывающие порядок выполнения операций.
+Должна быть указана операция в атрибуте "ord_brac" для выполнения этого действия.
+Если атрибут имеет значение "None", то вернёт "False" и не сделает ничего, иначе - вернёт "True", если хоть одна из группирующий операций была удалена."""
+    if isinstance(expr, functree):
+        return self.order_brackets_del(expr.expr)
+    if self.ord_brac is None or not isinstance(expr, exprtree):
+        return False
+    deleted = False
+    for tree in expr.trees:
+        deleted = self.order_brackets_del(tree) or deleted
+    if expr.val == self.ord_brac:
+        new_expr = expr.trees[0]
+        expr.val = new_expr.val
+        expr.trees = new_expr.trees
+        deleted = True
+    return deleted
+
+algebra.order_brackets_del = order_brackets_del
+del order_brackets_del
+
 class functree:
 
     __slots__ = ['expr', 'params']
@@ -91,6 +118,12 @@ class functree:
 
     def __reduce__(self):
         return self.__class__, (self.expr, []), None, iter(self.params)
+
+    def __eq__(self, other):
+        return isinstance(other, functree) and self.params == other.params and self.expr == other.expr
+
+    def __ne__(self, other):
+        return not self == other
 
     def copy(self):
         """Возвращает копию функции-дерева."""
