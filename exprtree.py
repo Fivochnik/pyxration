@@ -90,9 +90,9 @@ expr - строковое выражение;
 del_ord_brackets - удалить порядковые скобки из дерева операций? Зачастую они не нужны в дереве, потому что дерево само задаёт порядок.
 
 expr является объектом класса stringolist."""
-        for pre in self.preparse:
-            expr = pre(expr)
         exprst = stringolist(list(expr))
+        for pre in self.preparse:
+            exprst = pre(exprst)
         res = self._new_expr(exprst)
         if del_ord_brackets:
             self.order_brackets_del(res)
