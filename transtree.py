@@ -1,5 +1,6 @@
 from exprtree import exprtree
 from functree import functree, funcparam
+from cmpall import cmp
 
 def apply(main: 'exprtree|functree|any', trans: 'func(exprtree|any) -> exprtree|any') -> 'exprtree|functree|any':
     if isinstance(main, functree):
@@ -140,7 +141,7 @@ neutrals - словарь, ключами которого являются им
                     trees.append(tree)
             trees_len = len(trees)
             if trees_len == 0:
-                return ne[0]
+                return ns[0]
             elif trees_len == 1:
                 return trees[0]
             main.trees = trees
@@ -186,7 +187,6 @@ if __name__ == '__main__':
         operObject,
         str_tree
     )
-    from cmpall import cmp
     
     plus = operInfix('plus', '+')
     mult = operInfix('multiply', '*')

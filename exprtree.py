@@ -84,12 +84,12 @@ expr является объектом класса stringolist."""
             _computed.append(res)
         return res
 
-    def new_expr(self, expr: str, del_ord_brackets: bool = True) -> 'stringolist|exprtree':
+    def new_expr(self, expr: 'str|stringolist', del_ord_brackets: bool = True) -> 'stringolist|exprtree':
         """Создаёт деревья выражений из строкового выражения.
 expr - строковое выражение;
 del_ord_brackets - удалить порядковые скобки из дерева операций? Зачастую они не нужны в дереве, потому что дерево само задаёт порядок.
 
-expr является объектом класса stringolist."""
+expr является строкой или объектом класса stringolist."""
         exprst = stringolist(list(expr))
         for pre in self.preparse:
             exprst = pre(exprst)
@@ -111,10 +111,10 @@ expr является объектом класса stringolist."""
             def orderOf(oper: 'operation') -> int:
                 return self.oper_exec_ord.index(oper)# if oper in self.oper_exec_ord else -1
         expr_order = orderOf(expr.val)
+        if expr.trees is None or len(expr.trees) < 2:
+            return expr.val.repres(expr.trees)
         cur_expr_str = exprtree(expr.val, [])
-        for i in range(0
-                       if expr.trees is None else
-                       len(expr.trees)):
+        for i in range(len(expr.trees)):
             obj_str = self._to_str(expr.trees[i])
             i_order = orderOf(expr.trees[i].val) if isinstance(expr.trees[i], exprtree) else -1
             if i_order != -1 and i_order >= expr_order:
@@ -124,6 +124,10 @@ expr является объектом класса stringolist."""
 
     def to_str(self, expr: 'exprtree') -> str:
         """Возвращает математическое выражение в виде строки."""
+        if (expr.__class__.__name__ == 'functree' and
+            hasattr(expr, 'params') and
+            hasattr(expr, 'expr')):
+            expr = expr.expr
         res = self._to_str(expr)
         for post in self.poststringify:
             res = post(res)
@@ -179,7 +183,7 @@ trees - список поддеревьев."""
         return exprtree(self.val, [x.copy() if isinstance(x, exprtree) else x
                                    for x in self.trees])
 
-def str_tree(self: 'functree|exprtree|any', showtypes: bool = False, lasts: list = None, last: bool = False):
+def str_tree(self: 'functree|exprtree|any', showtypes: bool = False, lasts: list = None, last: bool = False) -> str:
     """Возвращает дерево на боку в виде текста."""
     if (self.__class__.__name__ == 'functree' and
         hasattr(self, 'params') and
@@ -474,7 +478,6 @@ sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
     if not (group_args_seps is None or isinstance(group_args_seps, list)):
         raise TypeError(f'аргумент group_args_seps должен быть list или None, а не {group_args_seps.__class__.__name__}')
     oper_prefix_len = len(oper_prefix)
-    group_args_seps_len = len(group_args_seps)
 
     if group_args_seps is None:
         def prefix_parser(exp: 'str|stringolist') -> 'exprtree|stringolist|None':
@@ -483,7 +486,10 @@ sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
                 exp = stringolist(list(exp))
             elif not isinstance(exp, stringolist):
                 raise TypeError(f'ожидался str или stringolist, а встреченно {exp.__class__.__name__}')
-            return exprtree(oper, exp[oper_prefix_len:]) if exp.startswith(oper_prefix) else None
+            arg = exp[oper_prefix_len:]
+            if len(arg) == 1 and isinstance(arg[0], exprtree):
+                arg = arg[0]
+            return exprtree(oper, [arg]) if exp.startswith(oper_prefix) else None
 
         def prefix_repres(args: list) -> str:
             """Создаёт строку математического выражения из списка аргументов операции."""
@@ -496,6 +502,8 @@ sin.funcs_update(prefix_parser_and_repres('sin', sin, [None]))"""
                                            if isinstance(arg, exprtree) else
                                            str(arg))
     else:
+        group_args_seps_len = len(group_args_seps)
+
         def prefix_parser(exp: 'str|stringolist') -> 'exprtree|stringolist|None':
             """Обрабатывает строку."""
             if isinstance(exp, str):
@@ -712,22 +720,6 @@ if __name__ == '__main__':
         expr = 'x*y*z*w'
         processed_expr = mul_operation.parser(expr)
         print(expr, processed_expr, sep = '\n')
-    if False:
-        expr = 'x+(y*z+(w-x*y)/z)*w'
-        expr_sl = stringolist(list(expr))
-        o_p = stringolist('(')
-        c_p = stringolist(')')
-        o_p_pos = expr_sl.find(o_p)
-        fake_c_p_pos = expr_sl.find(c_p) #Найдёт первую попавшуюся ")".
-        c_p_pos = pair_of(expr_sl, o_p, c_p, o_p_pos) #Найдёт парную закрывающую часть ")".
-        print(f'{expr = }')
-        print(f'{fake_c_p_pos = }, {c_p_pos = }')
-    if False:
-        dot_product = operation('dot product')
-        dot_product.funcs_update(outfix_parser_and_repres('(', ')', ',', dot_product))
-        expr = 'r+(r,g)-((q,w),e)'
-        processed_expr = dot_product.parser(expr)
-        print(expr, processed_expr, sep = '\n')
     if True:
         group = {x: operation(x) for x in ['()', '[]', '{}']}
         for x in group.keys():
@@ -773,7 +765,7 @@ if __name__ == '__main__':
                          [x for x in group.values()] + [split, plus, minus, power, sin, cos, root, int_num, variable],
                          [int_num, variable, sin, cos, root, power, plus, minus, split] + [x for x in group.values()],
                          group['()'])
-        expr = 'sin(root[2](x))^2+cos(root[2](x))^2+[({r,q},e)-root[n](78)]'
+        expr = 'sin(root[2+y](x))^2+cos(root[2](x))^2+[({r,q},e)-root[n](78)]'
         exps = stringolist(list(expr))
         expt = simple.new_expr(exps)
         expt1 = simple.new_expr(exps)
@@ -784,15 +776,3 @@ if __name__ == '__main__':
         print(expr, str_tree(expt), sep = ':\n')
         print('expr =', simple.to_str(expr))
         print(f'{expr}\n==\n{expr}\n=\n{expt == expt1}')
-    if False:
-        a = 'a'
-        b = 1
-        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
-        a = operation('oper')
-        b = operation('oper')
-        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
-        b.funcs_update(infix_parser_and_repres('+', b))
-        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')
-        a = ['a']
-        b = [1]
-        print(f'a = {a!r}\nb = {b!r}\n\t{cmp(a, b) = }\n\t{cmp(b, a) = }')

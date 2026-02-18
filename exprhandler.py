@@ -61,18 +61,29 @@ notation и invnotation строко-списоки обозначений об�
     return invOperPoststringify
 
 if __name__ == '__main__':
-    plus = stringolist('+')
-    minus = stringolist('-')
-    left = [
-        stringolist('('),
-        stringolist('['),
-        stringolist('{')
-    ]
+    from exprtree import algebra, exprtree, operation, \
+         str_tree, operInfix, operGrouping, operPrefix, operObject
+
+    left = ['(', '[', '{']
+    treeer = invertOperPreparser('-', '+', left)
+    stringer = invertOperPoststringifier('-', '+')
+
+    plus = operInfix('addition', '+')
+    minus = operPrefix('negative', '-')
+    group = {
+        x: operGrouping(x, *x)
+        for x in ['()', '[]', '{}']
+    }
+    var = operObject('variable', lambda x: x.is_str() and x.to_str().isidentifier(), lambda x: x.to_str(), lambda x: stringolist(list(x)))
+    simple = algebra(
+        'simple',
+        list(group.values()) + [plus, minus, var],
+        list(group.values()) + [var, minus, plus],
+        group['()'],
+        [treeer],
+        [stringer]
+    )
+    
     expr = '-a-b+c-[-a-b]-c'
-    exprst = stringolist(list(expr))
-    handler = invertOperPreparser(minus, plus, left)
-    handled = handler(exprst)
-    print(handled.to_str())
-    posthandler = invertOperPoststringifier(minus, plus)
-    handledhandled = posthandler(handled)
-    print(handledhandled.to_str())
+    exprt = simple.new_expr(expr)
+    print(f'{expr}: {simple.to_str(exprt)}\n{str_tree(exprt)}')

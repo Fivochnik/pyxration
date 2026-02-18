@@ -22,7 +22,7 @@ name - уникальное имя параметра.
         return not self == other
 
     def __str__(self):
-        return self.name
+        return f'{self.name}'
 
     def __repr__(self):
         return f'funcparam({self.name})'
@@ -30,7 +30,7 @@ name - уникальное имя параметра.
     def __reduce__(self):
         return self.__class__, (self.name,)
 
-def new_func(self, expr: str, params: list = None) -> 'functree':
+def new_func(self, expr: 'str|stringolist', params: list = None) -> 'functree':
     """Создаёт деревья-функции из строкового выражения.
 expr - строковое выражение, в котором параметры обособлены процентами ("%") (чтобы использовать "%" в выражении, используй "\\%");
 del_ord_brackets - удалить порядковые скобки из дерева операций? Зачастую они не нужны в дереве, потому что дерево само задаёт порядок.
