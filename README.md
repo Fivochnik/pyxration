@@ -197,6 +197,30 @@ simple_algebra = algebra('simple', [group, plus, minus, integer], [integer, minu
 ```
 
 #### Создание операционного выражения
+Алгебры используются для создания операционных деревьев из строки. Для этого нужно сначала создать операции как написано выше, затем создать алгебру из этих операций, после этого можно создавать операционные деревья из строки с помощью метода *new_expr*:
+```python
+simple_expr = simple_algebra.new_expr('1+2+-3+(7+-5)')
+print(str_tree(simple_expr))
+```
+```text
+[addition] is exprtree
+├[integer] is exprtree
+│└1 is int
+├[integer] is exprtree
+│└2 is int
+├[negative] is exprtree
+│└[integer] is exprtree
+│ └3 is int
+└[addition] is exprtree
+ ├[integer] is exprtree
+ │└7 is int
+ └[negative] is exprtree
+  └[integer] is exprtree
+   └5 is int
+```
+
+#### Конвертация операционного дерева выражения обратно в строку выражения
+Алгебра позволяет конвертировать 
 
 ## functree и его основные методы
 Модуль, дополняющий модуль **exprtree**. Позволяет задавать функции с набором параметров для быстрой подстановки выражений.
