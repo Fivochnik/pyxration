@@ -23,6 +23,12 @@
   - [Класс *functree* (функция-дерево) и создание его экземпляров](#класс-functree-функция-дерево-и-создание-его-экземпляров)
     - [Конвертация функции-дерева обратно в строку выражения](#конвертация-функции-дерева-обратно-в-строку-выражения)
     - [Подстановка значений вместо параметров](#подстановка-значений-вместо-параметров)
+- [Модуль *transtree*, его классы, функции и методы](#модуль-transtree-его-классы-функции-и-методы)
+  - [Функция *apply*](#функция-apply)
+  - [Функция *operation_sort*](#функция-operation_sort)
+  - [Функция *expression_replacer*](#функция-expression_replacer)
+  - [Функция *neutrals_deleter*](#функция-neutrals_deleter)
+  - [Функция *zero_absorber*](#функция-zero_absorber)
 
 ## *pyxration*
 Символьная алгебраическая библиотека для создания и описания своих алгебраических систем.
@@ -313,3 +319,239 @@ expr.subs({'y': simple_expr})
 ```
 
 Важно! После работы метода функция-дерево меняется, поэтому для сохранения старого функции-дерева перед применением метода нужно создать копию вашего функции-дерева!
+
+## Модуль *exprhandler*, его классы, функции и методы
+Модуль, позволяющий создавать предобработки строки перед созданием операционного дерева и постобработки строки после конвертации операционного дерева обратно в строку.
+
+### Функция *invertOperPreparser*
+Эта функция позволяет привести операцию в инфиксной форме к префиксной форме. Если у тебя есть операции "+" и "-", где "+" используется только в инфиксной форме "A+B", а "-" может использоваться как в инфиксной форме "A-B", так и в префиксной "-A", при чём "A-B" - это то же самое, что и "A+(-B)", тогда удобно рассматривать "-" как префиксную операцию в выражении и записывать выражения с "-" только так "A+(-B)". Но, если вы допускаете использования "-" как инфиксную операцию, то в таком случае вашей алгебре понадобится функция предобработки строки. Такая функция создаётся через шаблонную функцию *invertOperPreparser* подачей аргументов "-" и "+":
+```python
+preparseInv = invertOperPreparser('-', '+', ['(', '[', '{']]
+```
+
+В качестве третьего аргумента используется список начал выших группирующих операций в вашей алгебре, чтобы префиксные "-" не менять.
+
+Теперь полученная функция подаётся после основной группирующей операции в списке при создании алгебры:
+```python
+plus = OperInfix('plus', '+')
+minus = OperPrefix('minus', '-')
+var = OperObject('variable',
+                 lambda x: x.is_str() and x.to_str().isidentifier(),
+                 lambda x: x.to_str(),
+                 lambda x: stringolist(list(x)))
+group = {
+    x: operGrouping(x, *x)
+    for x in ['()', '[]', '{}']
+}
+algebraPlusMinus = algebra(
+    'simple',
+    list(group.values()) + [plus, minus, var],
+    list(group.values()) + [var, minus, plus],
+    group['()'],
+    [preparseInv]
+)
+```
+
+### Функция *invertOperPoststringifier*
+Эта функция используется в паре с *invertOperPreparser* и выполняет обратную роль: если вы хотите, чтобы ваше выражение выводилось так "A-B", а не так "A+-B", то нужно создать обработчик, используя эту шаблонную функцию с теми же аргументами, но без третьего:
+```python
+poststringifyInv = invertOperPoststringifier('-', '+')
+```
+
+Тогда та же алгебра, что создавалась с *preparseInv*, будет создаваться так:
+```python
+plus = OperInfix('plus', '+')
+minus = OperPrefix('minus', '-')
+var = OperObject('variable',
+                 lambda x: x.is_str() and x.to_str().isidentifier(),
+                 lambda x: x.to_str(),
+                 lambda x: stringolist(list(x)))
+group = {
+    x: operGrouping(x, *x)
+    for x in ['()', '[]', '{}']
+}
+algebraPlusMinus = algebra(
+    'simple',
+    list(group.values()) + [plus, minus, var],
+    list(group.values()) + [var, minus, plus],
+    group['()'],
+    [preparseInv],
+    [poststringifyInv]
+)
+```
+
+Наш *poststringifyInv* находится в списке последним аргументом в конструкторе алгебры и служит обработкой перед возвратом выражения в виде строки от метода *to_str*.
+
+## Модуль *transtree*, его классы, функции и методы
+Этот модуль позволяет выполнять написанные вами преобразования операционных деревьев.
+
+### Функция *apply*
+Главная функция этого модуля, позволяет применить преобразование ко всему операционному дереву. Очень полезна тем, что пользователю не придётся разбираться с работой с деревьями, ведь эта функция сама применяет ваше преобразование к каждой части операционного дерева, начиная с выражений, которые выполняются первыми в вашем основном выражении.
+
+В *apply* подяётся операционное дерево или функция-дерево, которое нужно изменить, и функция преобразования:
+```python
+expr = apply(expr, trans)
+```
+
+Функция *trans* (из примера выше) должна принимать в качестве единственного и обязательного аргумента операционное дерево (или любой другой объект из вашей алгебры, если это значение операции-объекта), а возвращать изменённое или это же операционное дерево (или этот же объект, если он не принадлежит операционным деревьям). В начале алгоритма вашей функции обязательно проверьте принадлежность поданного аргумента к операционным деревьям и верните его, если он не является таковым. Проделайте нужную работу с текущим узлом дерева. У любого узла дерева есть атрибуты *val* и *trees*. В *val* всегда хранится объект класса *operation*, в *trees* хранится список или *None*. В списке *trees* в основном лежат операционные деревья, которые являются аргументами для текущей операции, а для некоторых операций, называемых объектами-операциями (созданные функцией *OperObject* из модуля *exprtree*), *trees* хранит список произвольных объектов и является значением этого объекта-операции. После работы алгоритма верните результат (операционное дерево). В следующем примере создаётся функция, которая находит такие объекты-операции типа *MyInt* и меняет их на объекты-операции типа *MyFloat* с тем же значением, но в представлении этой объекта-операции:
+```python
+def my_transformation(expr: 'exprtree|any') -> 'exprtree|any'
+    """Заменяет все целые числа на вещественные."""
+    if not isinstance(expr, exprtree):
+        return expr
+    if expr.val == MyInt:
+        expr.val = MyFloat
+        expr.trees[0] = float(expr.trees[0])
+    return expr
+```
+
+Пусть *expr = any_algebra.new_expr('a+1-b\*(3.0-c\*4)')* и в виде дерева имеет вид:
+```text
+[MyPlus] is exprtree
+├[MyVar] is exprtree
+│└a is str
+├[MyInt] is exprtree
+│└1 is int
+└[MyMul] is exprtree
+ ├[MyNeg] is exprtree
+ │└[MyVar] is exprtree
+ │ └b is str
+ └[MyPlus] is exprtree
+  ├[MyFloat] is exprtree
+  │└3.0 is float
+  └[MyMul] is exprtree
+   ├[MyNeg] is exprtree
+   │└[MyVar] is exprtree
+   │ └c is str
+   └[MyInt] is exprtree
+    └4 is int
+```
+, тогда после выполнения:
+```python
+expr = apply(expr, my_transformation)
+```
+получится *expr = any_algebra.new_expr('a+1.0-b\*(3.0-c\*4.0)')* и в виде дерева будет иметь вид:
+```text
+[MyPlus] is exprtree
+├[MyVar] is exprtree
+│└a is str
+├[MyFloat] is exprtree
+│└1.0 is float
+└[MyMul] is exprtree
+ ├[MyNeg] is exprtree
+ │└[MyVar] is exprtree
+ │ └b is str
+ └[MyPlus] is exprtree
+  ├[MyFloat] is exprtree
+  │└3.0 is float
+  └[MyMul] is exprtree
+   ├[MyNeg] is exprtree
+   │└[MyVar] is exprtree
+   │ └c is str
+   └[MyFloat] is exprtree
+    └4.0 is int
+```
+
+### Функция *operation_sort*
+Это шаблонная функция для создания сортировки аргументов внутри указанных вами операций. Если ваша операция является коммутативной, то можно просотртировать аргументы этой операции, не меняя результата выполнения этой функции:
+```python
+commutative = operation_sort([MyPlus, MyMul])
+expr = apply(expr, commutative)
+```
+
+Это преобразование бывает полезным, когда нужно сравнить два операционных дерева на равенство после некоторых преобразований. После применения *commutative* ваше операционное дерево примет канонический вид, что в некоторых случаях может сделать изначально неравные деревья равными.
+
+### Функция *expression_replacer*
+Это шаблонная функция для создания шаблонной замены по формуле. Для создания функции нужно подать пару (кортеж из двух) функций-деревьев с одинаковым набором параметров:
+```python
+x_param = funcparam('x')
+y_param = funcparam('y')
+negBinMulFormula = any_algebra.new_func('-%x%*%y%', [x_param, y_param]), \
+                   any_algebra.new_func('-(%x%*%y%)', [x_param, y_param])
+negBinMul = expression_replacer(negBinMulFormula)
+```
+
+Если *expr = any_algebra.new_expr('a+1.0-b\*(3.0-c\*4.0)')*, который в виде дерева имеет вид:
+```text
+[MyPlus] is exprtree
+├[MyVar] is exprtree
+│└a is str
+├[MyFloat] is exprtree
+│└1.0 is float
+└[MyMul] is exprtree
+ ├[MyNeg] is exprtree
+ │└[MyVar] is exprtree
+ │ └b is str
+ └[MyPlus] is exprtree
+  ├[MyFloat] is exprtree
+  │└3.0 is float
+  └[MyMul] is exprtree
+   ├[MyNeg] is exprtree
+   │└[MyVar] is exprtree
+   │ └c is str
+   └[MyFloat] is exprtree
+    └4.0 is int
+```
+
+, то после выполнения:
+```python
+expr = apply(expr, negBinMulFormula)
+```
+
+выражение станет *expr = any_algebra.new_expr('a+1.0-(b\*(3.0-(c\*4.0)))')* и в виде дерева будет иметь вид:
+```text
+[MyPlus] is exprtree
+├[MyVar] is exprtree
+│└a is str
+├[MyFloat] is exprtree
+│└1.0 is float
+└[MyNeg] is exprtree
+ └[MyMul] is exprtree
+  ├[MyVar] is exprtree
+  │└b is str
+  └[MyPlus] is exprtree
+   ├[MyFloat] is exprtree
+   │└3.0 is float
+   └[MyNeg] is exprtree
+    └[MyMul] is exprtree
+     ├[MyVar] is exprtree
+     │└c is str
+     └[MyFloat] is exprtree
+      └4.0 is int
+```
+
+### Функция *neutrals_deleter*
+Это шаблонная функция для создания функции удаления нейтральных элементов текущего узла. Для создания функции нужно в шаблонную функцию подать словарь, ключи которого являются именами операций, а значения - списками операционных деревьев, которые в вашей алгебре считаются нейтральными элементами для данной операции:
+```python
+zeros = [any_algebra.new_expr('0'),
+         any_algebra.new_expr('0.0'),
+         any_algebra.new_expr('-0'),
+         any_algebra.new_expr('-0.0')]
+units = [any_algebra.new_expr('1'),
+         any_algebra.new_expr('1.0')]
+neutral_del = neutrals_deleter({'MyPlus': zeros, 'MyMul': units})
+```
+
+Если *expr = any_algebra.new_expr('a+0+(b+0.0)')*, то после следующего кода:
+```python
+expr = apply(expr, neutral_del)
+```
+
+*expr* примет вид *any_algebra.new_expr('a+b')*.
+
+### Функция *zero_absorber*
+Это шаблонная функция для создания функции поглащения элементом всей операции. Для создания функции нужно в шаблонную функцию подать словарь, ключи которого являются именами операций, а значения - списками операционных деревьев, которые в вашей алгебре считаются поглащающими данную операцию элементами:
+```python
+zeros = [any_algebra.new_expr('0'),
+         any_algebra.new_expr('0.0'),
+         any_algebra.new_expr('-0'),
+         any_algebra.new_expr('-0.0')]
+absorb = zero_absorber({'MyMul': zeros})
+```
+
+Если *expr = any_algebra.new_expr('a\*0+(b\*0.0)+c\*1+d\*2.0')*, то после следующего кода:
+```python
+expr = apply(expr, absorb)
+```
+
+*expr* примет вид *any_algebra.new_expr('0+0+c\*1+d\*2.0')*. При чём все операции, где есть поглащающий эту операцию элемент, заменятся на первый поглащающий элемент из соответствующего списка.
