@@ -248,3 +248,4 @@ if __name__ == '__main__':
         print(f'{expf.paramvals(expt, prms) = }')
         for p in prms:
             print(f'{p} = {simple.to_str(prms[p])}\n{str_tree(prms[p])}')
+        print(simple.to_str(expf.expr))

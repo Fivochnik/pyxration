@@ -14,8 +14,9 @@ order_brackets - группирующая операция, показывающ
 Аргумент operation_parsing_order должен быть списком операций.
 Положение операций в этом списке показывает порядок, в котором будут выполняться методы парсировки от каждой операции.
 
-Аргумент operation_execution_order должен быть списком операций.
-Положение операций в этом списке показывает порядок, в котором будут выполняться операции."""
+Аргумент operation_execution_order должен быть списком операций и кортежей операций.
+Положение операций в этом списке показывает порядок, в котором будут выполняться операции.
+Операции в одном кортеже имеют одинаковый приоритет выполнения."""
 
     __slots__ = ['name', 'oper_pars_ord', 'oper_exec_ord', 'ord_brac', 'preparse', 'poststringify']
 
@@ -98,26 +99,35 @@ expr является строкой или объектом класса string
             self.order_brackets_del(res)
         return res
 
-    def _to_str(self, expr: 'exprtree') -> str:
+    def _to_str(self, expr: 'exprtree', _do_last_str: bool = True) -> str:
         """Возвращает математическое выражение в виде строки."""
         if expr is None:
             return ''
         if not isinstance(expr, exprtree):
-            return str(expr)
+            return str(expr) if _do_last_str else expr
         if self.oper_exec_ord is None:
             def orderOf(oper: 'operation') -> int:
                 return -1
         else:
             def orderOf(oper: 'operation') -> int:
-                return self.oper_exec_ord.index(oper)# if oper in self.oper_exec_ord else -1
+                for i, op in enumerate(self.oper_exec_ord):
+                    if isinstance(op, tuple):
+                        if oper in op:
+                            return i
+                    elif oper == op:
+                        return i
+                return -1
         expr_order = orderOf(expr.val)
         if expr.trees is None or len(expr.trees) < 2:
             return expr.val.repres(expr.trees)
         cur_expr_str = exprtree(expr.val, [])
         for i in range(len(expr.trees)):
-            obj_str = self._to_str(expr.trees[i])
+            obj_str = self._to_str(expr.trees[i], False)
+            if not isinstance(obj_str, str):
+                cur_expr_str.trees.append(obj_str)
+                continue
             i_order = orderOf(expr.trees[i].val) if isinstance(expr.trees[i], exprtree) else -1
-            if i_order != -1 and i_order >= expr_order:
+            if i_order == -1 or i_order >= expr_order:
                 obj_str = self.ord_brac.repres([obj_str])
             cur_expr_str.trees.append(obj_str)
         return cur_expr_str.val.repres(cur_expr_str.trees)
