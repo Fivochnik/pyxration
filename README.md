@@ -32,6 +32,8 @@
   - [Функция *expression_replacer*](#функция-expression_replacer)
   - [Функция *neutrals_deleter*](#функция-neutrals_deleter)
   - [Функция *zero_absorber*](#функция-zero_absorber)
+  - [Функция *left_associater*](#функция-left_associater)
+  - [Функция *right_associater*](#функция-right_associater)
 
 ## *pyxration*
 Символьная алгебраическая библиотека для создания и описания своих алгебраических систем.
@@ -532,10 +534,10 @@ zeros = [any_algebra.new_expr('0'),
          any_algebra.new_expr('-0.0')]
 units = [any_algebra.new_expr('1'),
          any_algebra.new_expr('1.0')]
-neutral_del = neutrals_deleter({'MyPlus': zeros, 'MyMul': units})
+neutral_del = neutrals_deleter({'MyPlus': zeros, 'MyMul': units}) # MyPlus = operInfix('MyPlus', '+'); MyMul = operInfix('MyMul', '*')
 ```
 
-Если *expr = any_algebra.new_expr('a+0+(b+0.0)')*, то после следующего кода:
+Если *expr = any_algebra.new_expr('a+0+(b+0.0)')*, то после выполнения следующего кода:
 ```python
 expr = apply(expr, neutral_del)
 ```
@@ -549,12 +551,38 @@ zeros = [any_algebra.new_expr('0'),
          any_algebra.new_expr('0.0'),
          any_algebra.new_expr('-0'),
          any_algebra.new_expr('-0.0')]
-absorb = zero_absorber({'MyMul': zeros})
+absorb = zero_absorber({'MyMul': zeros}) # MyPlus = operInfix('MyPlus', '+'); MyMul = operInfix('MyMul', '*')
 ```
 
-Если *expr = any_algebra.new_expr('a\*0+(b\*0.0)+c\*1+d\*2.0')*, то после следующего кода:
+Если *expr = any_algebra.new_expr('a\*0+(b\*0.0)+c\*1+d\*2.0')*, то после выполнения следующего кода:
 ```python
 expr = apply(expr, absorb)
 ```
 
 *expr* примет вид *any_algebra.new_expr('0+0+c\*1+d\*2.0')*. При чём все операции, где есть поглащающий эту операцию элемент, заменятся на первый поглащающий элемент из соответствующего списка.
+
+### Функция *left_associater*
+Это шаблонная функция для создания функции по преобразованию заданных операций из n-арных в строго бинарные с учётом того, что данная операция обладает свойством левой ассоциативности. Для создания функции нужно подать список подходящих под описание операций:
+```python
+l_associate = left_associater([MyPlus, MyMul]) # MyPlus = operInfix('MyPlus', '+'); MyMul = operInfix('MyMul', '*')
+```
+
+Если *expr = any_algebra.new_expr('a+b\*c\*d\*3+e+f')*, то после выполнения следующего кода:
+```python
+expr = apply(expr, l_associate)
+```
+
+*expr* примет вид *any_algebra.new_expr('(a+((b\*c)\*d)\*3+e)+f')*
+
+### Функция *right_associater*
+Это шаблонная функция для создания функции по преобразованию заданных операций из n-арных в строго бинарные с учётом того, что данная операция обладает свойством правой ассоциативности. Для создания функции нужно подать список подходящих под описание операций:
+```python
+r_associate = right_associater([MyPlus, MyMul]) # MyPlus = operInfix('MyPlus', '+'); MyMul = operInfix('MyMul', '*')
+```
+
+Если *expr = any_algebra.new_expr('a+b\*c\*d\*3+e+f')*, то после выполнения следующего кода:
+```python
+expr = apply(expr, r_associate)
+```
+
+*expr* примет вид *any_algebra.new_expr('a+(b\*(c\*(d\*3))+(e+f))')*
