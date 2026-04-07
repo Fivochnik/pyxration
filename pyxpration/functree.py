@@ -1,6 +1,15 @@
-from .stringolist import stringolist
-from .exprtree import operation, algebra, exprtree, str_tree
-from .exprtree import infix_parser_and_repres, grouping_parser_and_repres, prefix_parser_and_repres, object_parser_and_repres
+if __name__ == '__main__':
+    from stringolist import stringolist
+    from exprtree import (
+        operation, algebra, exprtree, str_tree,
+        infix_parser_and_repres, grouping_parser_and_repres, prefix_parser_and_repres, object_parser_and_repres
+    )
+else:
+    from .stringolist import stringolist
+    from .exprtree import (
+        operation, algebra, exprtree, str_tree,
+        infix_parser_and_repres, grouping_parser_and_repres, prefix_parser_and_repres, object_parser_and_repres
+    )
 
 class funcparam:
     """Класс параметра функции.
@@ -100,13 +109,39 @@ def order_brackets_del(self, expr: 'exprtree') -> bool:
         deleted = self.order_brackets_del(tree) or deleted
     if expr.val == self.ord_brac:
         new_expr = expr.trees[0]
-        expr.val = new_expr.val
-        expr.trees = new_expr.trees
+        if isinstance(new_expr, exprtree):
+            expr.val = new_expr.val
+            expr.trees = new_expr.trees
+        else:
+            expr = new_expr
         deleted = True
     return deleted
 
 algebra.order_brackets_del = order_brackets_del
 del order_brackets_del
+
+def __call__(self, arg: 'any', /, *args: 'any', is_func: bool = False):
+    arg = [arg]
+    arg.extend(args)
+    params = []
+    for i, x in enumerate(arg):
+        if isinstance(x, funcparam):
+            is_func = True
+            if x not in params:
+                params.append(x)
+        elif isinstance(x, functree):
+            is_func = True
+            for p in x.params:
+                if p not in params:
+                    params.append(p)
+    return (
+        functree(exprtree(self, arg), params)
+        if is_func else
+        exprtree(self, arg)
+    )
+
+operation.__call__ = __call__
+del __call__
 
 class functree:
 
